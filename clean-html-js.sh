@@ -1,23 +1,20 @@
 #!/bin/bash
 # clean-html-js.sh
 
-VER="1.3"
-GREEN="\033[1;32m"
-RED="\033[0;31m"
-YELLOW="\033[1;33m"
-ENDCOLOR="\033[0m"
+VER="1.4"
 
 tproc=`basename $0`
-echo -e $GREEN"$tproc version $VER"$ENDCOLOR
+echo -e "$tproc version $VER"
 echo ""
 
 usage()
 {
     tproc=`basename $0`
-    echo -e $YELLOW"usage:"$ENDCOLOR
-    echo -e $GREEN" bash $tproc input.html"$ENDCOLOR
+    echo -e "usage:"
+    echo -e " bash $tproc input.html"
     echo "options:"
-    echo "  -c          not clean comment (default = false);"
+    echo "  -c          clean comment (default = false);"
+    echo "  -i          iconvert (default = false);"
     echo "  -n          not verify type file (default = false);"
     echo "  -o str      output path (default = input.utf8.html);"
     echo "  -r          rewrite file (default = false);"
@@ -29,44 +26,29 @@ usage()
 testcomponent()
 {
     tnocomp=""
-    tcomp="/usr/bin/iconv"
-    tdeb="libc-bin_*.deb"
-    if [ ! -f "$tcomp" ]
+    tcomp="iconv"
+    [ ! "$(command -v $tcomp)" ] && tnocomp="$tnocomp $tcomp"
+    tcomp="enca"
+    [ ! "$(command -v $tcomp)" ] && tnocomp="$tnocomp $tcomp"
+    tcomp="sed"
+    [ ! "$(command -v $tcomp)" ] && tnocomp="$tnocomp $tcomp"
+    tcomp="grep"
+    [ ! "$(command -v $tcomp)" ] && tnocomp="$tnocomp $tcomp"
+    if [ "x$tnocomp" != "x" ]
     then
-    tnocomp="$tnocomp $tcomp($tdeb)"
-    fi
-    tcomp="/usr/bin/enca"
-    tdeb="enca_*.deb"
-    if [ ! -f "$tcomp" ]
-    then
-    tnocomp="$tnocomp $tcomp($tdeb)"
-    fi
-    tcomp="/bin/sed"
-    tdeb="sed_*.deb"
-    if [ ! -f "$tcomp" ]
-    then
-    tnocomp="$tnocomp $tcomp($tdeb)"
-    fi
-    tcomp="/bin/grep"
-    tdeb="grep_*.deb"
-    if [ ! -f "$tcomp" ]
-    then
-    tnocomp="$tnocomp $tcomp($tdeb)"
-    fi
-    if [ "+$tnocomp" != "+" ]
-    then
-    echo -e $RED"Not found $tnocomp !"$ENDCOLOR
-    echo ""
-    exit 0
+        echo "Not found:${tnocomp}!"
+        exit 1
     fi
 }
 
 main()
 {
-while getopts ":cno:rh" opt
+while getopts ":cino:rh" opt
 do
     case $opt in
         c) tcomment="1"
+            ;;
+        i) ticonv="1"
             ;;
         n) tnoverify="1"
             ;;
@@ -87,8 +69,6 @@ if [ -z "$SRCNAME" ]
 then
     usage
 fi
-echo "$src"
-echo ""
 if [ -z "$tnoverify" ]
 then
     thtml=`file "$SRCNAME" | grep "HTML document"`
@@ -101,15 +81,20 @@ then
     NEWNAME="$NEWNAME.utf8.html"
     echo " $SRCNAME -> $NEWNAME"
 
-    CODENAME=$(/usr/bin/enca -i "$SRCNAME")
-    if [ "+$CODENAME" = "+" -o "+$CODENAME" = "+???" ]
+    if [ -z "$ticonv" ]
     then
-    CODENAME="UTF-8"
-    elif [ "+$CODENAME" != "+UTF-8" ]
-    then
-    echo "  Convert: $CODENAME -> UTF8"
+        cat "$SRCNAME" > "$NEWNAME"
+    else
+        CODENAME=$(enca -i "$SRCNAME")
+        if [ "+$CODENAME" = "+" -o "+$CODENAME" = "+???" ]
+        then
+            CODENAME="UTF-8"
+        elif [ "+$CODENAME" != "+UTF-8" ]
+        then
+            echo "  Convert: $CODENAME -> UTF8"
+        fi
+        cat "$SRCNAME" | iconv -c -f ${CODENAME} -t UTF8 > "$NEWNAME"
     fi
-    cat "$SRCNAME" | iconv -c -f ${CODENAME} -t UTF8 > "$NEWNAME"
 
 echo -e -n "[4]: 0.."
 
@@ -154,7 +139,7 @@ echo -e -n "2.."
 
 echo -e -n "3.."
 
-    if [ -z "$tcomment" ]
+    if [ ! -z "$tcomment" ]
     then
         sed -i -e '
         /^<\!--/,/^-->/d
@@ -163,11 +148,14 @@ echo -e -n "3.."
 
 echo -e -n "4.."
 
-    sed -i -e '
-    s/content="text\/html; charset=.*">/content="text\/html; charset=utf-8">/ig
-    s/[ \t]*$//
-    /^$/d
-    ' "$NEWNAME"
+    if [ ! -z "$ticonv" ]
+    then
+        sed -i -e '
+        s/content="text\/html; charset=.*">/content="text\/html; charset=utf-8">/ig
+        s/[ \t]*$//
+        /^$/d
+        ' "$NEWNAME"
+    fi
 
 flgpre=`grep -i "<pre" "$NEWNAME"`
 if [ "+$flgpre" = "+" ]

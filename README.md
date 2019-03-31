@@ -9,7 +9,7 @@ Bash script for clean html file in console.
 Example:
 
 ```bash
-$ bash clean-html-js.sh -c index.html
+$ bash clean-html-js.sh -i index.html
 
 clean-html-js.sh version 1.3
  index.html -> index.utf8.html
